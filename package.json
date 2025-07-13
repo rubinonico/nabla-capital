@@ -1,0 +1,14 @@
+{
+  "name": "nabla-capital-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=@nabla-capital/n8n-nodes-nabla",
+    "test": "npm run test --workspace=@nabla-capital/n8n-nodes-nabla"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

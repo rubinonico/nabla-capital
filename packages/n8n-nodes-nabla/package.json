@@ -1,0 +1,23 @@
+{
+  "name": "@nabla-capital/n8n-nodes-nabla",
+  "version": "0.1.0",
+  "description": "Custom n8n nodes for Nabla Capital",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest"
+  },
+  "author": "Kilo Code",
+  "license": "MIT",
+  "dependencies": {
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.10.2",
+    "n8n-workflow": "*",
+    "typescript": "^5.0.0",
+    "vitest": "^0.34.0"
+  }
+}
