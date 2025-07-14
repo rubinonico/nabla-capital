@@ -1,0 +1,283 @@
+{
+  "name": "Nabla Capital v5.4 Delta Hedge",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -300,
+        300
+      ],
+      "webhookId": "nabla-v5.4-trigger"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "rules": [
+            {
+              "value1": "{{$json.body.chainType}}",
+              "operation": "equal",
+              "value2": "evm"
+            },
+            {
+              "value1": "{{$json.body.chainType}}",
+              "operation": "equal",
+              "value2": "solana"
+            }
+          ]
+        }
+      },
+      "name": "Switch: Chain Type?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://[datai-mcp-url].up.railway.app/base/aerodrome/lp/{{$json.body.poolAddress}}?wallet={{$json.body.walletAddress}}",
+        "options": {}
+      },
+      "name": "HTTP: Call Datai MCP for LP Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        100,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://[solana-mcp-url].up.railway.app/pair_liquidity?pool_address={{$json.body.poolAddress}}",
+        "options": {}
+      },
+      "name": "HTTP: Call Solana MCP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        100,
+        400
+      ]
+    },
+    {
+      "parameters": {},
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 1,
+      "position": [
+        300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const P = $json.currentPrice;\nconst Pa = $json.lowerBound;\nconst Pb = $json.upperBound;\nconst L = BigInt($json.liquidity);\nconst deadband = 10; // $10 deadband\n\nlet delta = 0;\n\nif (P >= Pa && P <= Pb) {\n  // Case 1: In Range\n  const sqrtP = Math.sqrt(P);\n  const sqrtPb = Math.sqrt(Pb);\n  delta = parseFloat(L.toString()) * (1 / sqrtP - 1 / sqrtPb);\n} else if (P < Pa) {\n  // Case 2: Below Range\n  const sqrtPa = Math.sqrt(Pa);\n  const sqrtPb = Math.sqrt(Pb);\n  delta = parseFloat(L.toString()) * (1 / sqrtPa - 1 / sqrtPb);\n} else {\n  // Case 3: Above Range\n  delta = 0;\n}\n\nconst hedgeAmount = -delta;\nconst isHedgeRequired = Math.abs(hedgeAmount * P) > deadband;\n\nreturn {\n  delta,\n  hedgeAmount,\n  isHedgeRequired\n};"
+      },
+      "name": "Code: Delta Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "rules": [
+            {
+              "value1": "{{$json.isHedgeRequired}}",
+              "operation": "equal",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "IF: abs(Hedge) > Deadband?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://[hyperliquid-mcp-url].up.railway.app/order",
+        "authentication": "headerAuth",
+        "options": {},
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "ETH"
+            },
+            {
+              "name": "side",
+              "value": "sell"
+            },
+            {
+              "name": "qty",
+              "value": "{{$json.hedgeAmount}}"
+            },
+            {
+              "name": "type",
+              "value": "market"
+            },
+            {
+              "name": "reduceOnly",
+              "value": false
+            }
+          ]
+        }
+      },
+      "name": "HTTP: Call Hyperliquid MCP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        900,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hyperliquid-api",
+          "name": "Hyperliquid API"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "name": "End",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        900,
+        400
+      ]
+    },
+    {
+      "parameters": {},
+      "name": "End",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Switch: Chain Type?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: Chain Type?": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Call Datai MCP for LP Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP: Call Solana MCP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Call Datai MCP for LP Data": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Call Solana MCP": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code: Delta Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Delta Engine": {
+      "main": [
+        [
+          {
+            "node": "IF: abs(Hedge) > Deadband?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: abs(Hedge) > Deadband?": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Call Hyperliquid MCP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "End",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Call Hyperliquid MCP": {
+      "main": [
+        [
+          {
+            "node": "End",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  }
+}
