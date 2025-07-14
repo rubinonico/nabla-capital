@@ -1,18 +1,19 @@
 # Use the official n8n Docker image as a base
 FROM n8nio/n8n
 
-# Switch to the root user to copy files and set permissions
+# Switch to the root user to create a new data directory
 USER root
 
-# Copy the custom entrypoint script into the container
-COPY entrypoint.sh /usr/local/bin/
-
-# Make the entrypoint script executable
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Create a new directory /data and give ownership to the 'node' user.
+# This avoids the permission issues associated with the default /home/node/.n8n directory.
+RUN mkdir /data && chown node:node /data
 
 # Switch back to the non-root 'node' user for security
 USER node
 
-# Set the custom script as the entrypoint for the container.
-# This will run our permission-fixing script before starting n8n.
-ENTRYPOINT ["entrypoint.sh"]
+# Use an environment variable to tell n8n to use the new /data directory
+# for all of its configuration, database, and workflow files.
+ENV N8N_USER_FOLDER=/data
+
+# The container will now start n8n, which will automatically read the
+# N8N_USER_FOLDER variable and use our safe, new directory.
